@@ -1,12 +1,12 @@
 
 package com.coffeespot.ui;
 
-import com.coffeespot.model.ItemPedido;
-import com.coffeespot.model.Pedido;
-import com.coffeespot.model.Produto;
-import com.coffeespot.service.CardapioService;
-import com.coffeespot.service.PedidoService;
+import com.coffeespot.model.*;
+import com.coffeespot.repository.VendaRepository;
+import com.coffeespot.service.*;
 
+import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
 import java.util.Scanner;
 
 public class Menu {
@@ -14,11 +14,15 @@ public class Menu {
     private final Scanner scanner;
     private final CardapioService cardapioService;
     private final PedidoService pedidoService;
+    private final VendaRepository vendaRepository;
+    private final CaixaService caixaService;
 
     public Menu() {
         scanner = new Scanner(System.in);
         cardapioService = new CardapioService();
         pedidoService = new PedidoService(cardapioService);
+        vendaRepository = new VendaRepository();
+        caixaService = new CaixaService(vendaRepository);
     }
 
     public void iniciar() {
@@ -32,33 +36,24 @@ public class Menu {
                 case 1:
                     novoPedido();
                     break;
-
                 case 2:
                     exibirCardapio();
                     break;
-
                 case 3:
                     System.out.println(
-                        "\nConsultar vendas - Em desenvolvimento."
+                        "\nHistorico de vendas - Proxima etapa."
                     );
                     break;
-
                 case 4:
                     System.out.println(
-                        "\nFechar caixa - Em desenvolvimento."
+                        "\nFechamento de caixa - Proxima etapa."
                     );
                     break;
-
                 case 0:
-                    System.out.println(
-                        "\nEncerrando Coffee Spot..."
-                    );
+                    System.out.println("\nEncerrando Coffee Spot...");
                     break;
-
                 default:
-                    System.out.println(
-                        "\nOpcao invalida. Tente novamente."
-                    );
+                    System.out.println("\nOpcao invalida.");
             }
 
         } while (opcao != 0);
@@ -86,7 +81,6 @@ public class Menu {
 
             if (!produto.getCategoria().equals(categoriaAtual)) {
                 categoriaAtual = produto.getCategoria();
-
                 System.out.println("\n--- " + categoriaAtual + " ---");
             }
 
@@ -98,17 +92,15 @@ public class Menu {
             );
         }
 
-        System.out.println("\n==============================");
+        System.out.println("==============================");
     }
 
     private void novoPedido() {
-
         Pedido pedido = pedidoService.criarPedido();
 
         System.out.println("\n===== NOVO PEDIDO =====");
 
         while (true) {
-
             exibirCardapio();
 
             int codigo = lerInteiro(
@@ -129,9 +121,7 @@ public class Menu {
             int quantidade = lerInteiro("Quantidade: ");
 
             if (quantidade <= 0) {
-                System.out.println(
-                    "A quantidade deve ser maior que zero."
-                );
+                System.out.println("Quantidade invalida.");
                 continue;
             }
 
@@ -139,57 +129,126 @@ public class Menu {
                 pedidoService.adicionarProduto(
                     pedido, codigo, quantidade
                 );
-
-                System.out.println(
-                    "\nProduto adicionado com sucesso!"
-                );
+                System.out.println("\nProduto adicionado!");
             } catch (ArithmeticException e) {
-                System.out.println(
-                    "Quantidade excede o limite permitido."
-                );
+                System.out.println("Quantidade excede o limite.");
                 continue;
             }
 
-            String resposta;
-
-            do {
-                resposta = lerTexto(
-                    "Adicionar outro produto? (S/N): "
-                );
-
-                if (!resposta.equalsIgnoreCase("S")
-                        && !resposta.equalsIgnoreCase("N")) {
-                    System.out.println(
-                        "Resposta invalida. Digite S ou N."
-                    );
-                }
-
-            } while (!resposta.equalsIgnoreCase("S")
-                    && !resposta.equalsIgnoreCase("N"));
-
-            if (resposta.equalsIgnoreCase("N")) {
+            if (!lerSimNao("Adicionar outro produto? (S/N): ")) {
                 break;
             }
         }
 
         if (pedido.estaVazio()) {
-            System.out.println("\nNenhum produto adicionado.");
+            System.out.println("\nPedido vazio. Operacao cancelada.");
             return;
         }
 
         exibirResumoPedido(pedido);
 
-        System.out.println(
-            "\nPedido montado. Pagamento sera implementado na proxima etapa."
-        );
+        if (!lerSimNao("\nConfirmar pedido? (S/N): ")) {
+            System.out.println("Pedido cancelado.");
+            return;
+        }
+
+        processarPagamento(pedido);
     }
 
     private void exibirResumoPedido(Pedido pedido) {
-
         System.out.println("\n========== RESUMO DO PEDIDO ==========");
 
         for (ItemPedido item : pedido.getItens()) {
+            System.out.printf(
+                "%dx %-22s R$ %6.2f%n",
+                item.getQuantidade(),
+                item.getProduto().getNome(),
+                item.calcularSubtotal()
+            );
+        }
 
+        BigDecimal subtotal = pedido.calcularSubtotal();
+        BigDecimal desconto = caixaService.calcularDesconto(pedido);
+        BigDecimal total = caixaService.calcularTotal(pedido);
+
+        System.out.println("--------------------------------------");
+        System.out.printf("Subtotal: R$ %.2f%n", subtotal);
+        System.out.printf("Desconto: R$ %.2f%n", desconto);
+        System.out.printf("TOTAL:    R$ %.2f%n", total);
+        System.out.println("======================================");
+    }
+
+    private void processarPagamento(Pedido pedido) {
+        BigDecimal total = caixaService.calcularTotal(pedido);
+
+        System.out.println("\n========== PAGAMENTO ==========");
+        System.out.printf("Total a pagar: R$ %.2f%n", total);
+        System.out.println("1 - Dinheiro");
+        System.out.println("2 - Pix");
+        System.out.println("3 - Cartao");
+        System.out.println("0 - Cancelar");
+
+        FormaPagamento formaPagamento;
+
+        while (true) {
+            int opcao = lerInteiro("Forma de pagamento: ");
+
+            if (opcao == 0) {
+                System.out.println("Pagamento cancelado.");
+                return;
+            }
+
+            if (opcao == 1) {
+                formaPagamento = FormaPagamento.DINHEIRO;
+                break;
+            } else if (opcao == 2) {
+                formaPagamento = FormaPagamento.PIX;
+                break;
+            } else if (opcao == 3) {
+                formaPagamento = FormaPagamento.CARTAO;
+                break;
+            }
+
+            System.out.println("Forma de pagamento invalida.");
+        }
+
+        BigDecimal valorRecebido = total;
+
+        if (formaPagamento == FormaPagamento.DINHEIRO) {
+            while (true) {
+                valorRecebido = lerDinheiro(
+                    "Valor recebido (ex: 50.00): R$ "
+                );
+
+                if (valorRecebido.compareTo(total) >= 0) {
+                    break;
+                }
+
+                System.out.println(
+                    "Valor insuficiente. Total: R$ " + total
+                );
+            }
+        }
+
+        Venda venda = caixaService.finalizarVenda(
+            pedido, formaPagamento, valorRecebido
+        );
+
+        exibirComprovante(venda);
+    }
+
+    private void exibirComprovante(Venda venda) {
+        DateTimeFormatter formato =
+                DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+        System.out.println("\n======================================");
+        System.out.println("          COFFEE SPOT");
+        System.out.println("        COMPROVANTE DE VENDA");
+        System.out.println("======================================");
+        System.out.println("Venda: #" + venda.getNumero());
+        System.out.println("Data: " + venda.getDataHora().format(formato));
+
+        for (ItemPedido item : venda.getItens()) {
             System.out.printf(
                 "%dx %-22s R$ %6.2f%n",
                 item.getQuantidade(),
@@ -199,17 +258,24 @@ public class Menu {
         }
 
         System.out.println("--------------------------------------");
+        System.out.printf("Subtotal: R$ %.2f%n", venda.getSubtotal());
+        System.out.printf("Desconto: R$ %.2f%n", venda.getDesconto());
+        System.out.printf("TOTAL:    R$ %.2f%n", venda.getTotal());
+        System.out.println("Pagamento: " + venda.getFormaPagamento());
 
-        System.out.printf(
-            "SUBTOTAL: R$ %.2f%n",
-            pedido.calcularSubtotal()
-        );
+        if (venda.getFormaPagamento() == FormaPagamento.DINHEIRO) {
+            System.out.printf(
+                "Recebido: R$ %.2f%n", venda.getValorRecebido()
+            );
+            System.out.printf("Troco:    R$ %.2f%n", venda.getTroco());
+        }
 
+        System.out.println("======================================");
+        System.out.println("       Obrigado pela preferencia!");
         System.out.println("======================================");
     }
 
     private int lerInteiro(String mensagem) {
-
         while (true) {
             System.out.print(mensagem);
             String entrada = scanner.nextLine().trim();
@@ -217,15 +283,47 @@ public class Menu {
             try {
                 return Integer.parseInt(entrada);
             } catch (NumberFormatException e) {
-                System.out.println(
-                    "Entrada invalida. Digite um numero inteiro."
-                );
+                System.out.println("Digite um numero inteiro valido.");
             }
         }
     }
 
-    private String lerTexto(String mensagem) {
-        System.out.print(mensagem);
-        return scanner.nextLine().trim();
+    private BigDecimal lerDinheiro(String mensagem) {
+        while (true) {
+            System.out.print(mensagem);
+            String entrada = scanner.nextLine().trim()
+                    .replace(",", ".");
+
+            try {
+                BigDecimal valor = new BigDecimal(entrada);
+
+                if (valor.signum() >= 0 && valor.scale() <= 2) {
+                    return valor;
+                }
+            } catch (NumberFormatException e) {
+                // Entrada invalida: mensagem exibida abaixo.
+            }
+
+            System.out.println(
+                "Valor invalido. Use ate duas casas decimais."
+            );
+        }
+    }
+
+    private boolean lerSimNao(String mensagem) {
+        while (true) {
+            System.out.print(mensagem);
+            String resposta = scanner.nextLine().trim();
+
+            if (resposta.equalsIgnoreCase("S")) {
+                return true;
+            }
+
+            if (resposta.equalsIgnoreCase("N")) {
+                return false;
+            }
+
+            System.out.println("Digite S ou N.");
+        }
     }
 }
