@@ -1,8 +1,11 @@
 
 package com.coffeespot.ui;
 
+import com.coffeespot.model.ItemPedido;
+import com.coffeespot.model.Pedido;
 import com.coffeespot.model.Produto;
 import com.coffeespot.service.CardapioService;
+import com.coffeespot.service.PedidoService;
 
 import java.util.Scanner;
 
@@ -10,10 +13,12 @@ public class Menu {
 
     private final Scanner scanner;
     private final CardapioService cardapioService;
+    private final PedidoService pedidoService;
 
     public Menu() {
         scanner = new Scanner(System.in);
         cardapioService = new CardapioService();
+        pedidoService = new PedidoService(cardapioService);
     }
 
     public void iniciar() {
@@ -21,13 +26,11 @@ public class Menu {
 
         do {
             exibirMenu();
-            opcao = lerOpcao();
+            opcao = lerInteiro("Escolha uma opcao: ");
 
             switch (opcao) {
                 case 1:
-                    System.out.println(
-                        "\nNovo pedido - Em desenvolvimento."
-                    );
+                    novoPedido();
                     break;
 
                 case 2:
@@ -72,7 +75,6 @@ public class Menu {
         System.out.println("4 - Fechar caixa");
         System.out.println("0 - Sair");
         System.out.println("================================");
-        System.out.print("Escolha uma opcao: ");
     }
 
     private void exibirCardapio() {
@@ -99,14 +101,131 @@ public class Menu {
         System.out.println("\n==============================");
     }
 
-    private int lerOpcao() {
+    private void novoPedido() {
 
-        while (!scanner.hasNextInt()) {
-            System.out.println("Entrada invalida!");
-            System.out.print("Digite um numero: ");
-            scanner.next();
+        Pedido pedido = pedidoService.criarPedido();
+
+        System.out.println("\n===== NOVO PEDIDO =====");
+
+        while (true) {
+
+            exibirCardapio();
+
+            int codigo = lerInteiro(
+                "\nCodigo do produto (0 para finalizar): "
+            );
+
+            if (codigo == 0) {
+                break;
+            }
+
+            Produto produto = cardapioService.buscarPorCodigo(codigo);
+
+            if (produto == null) {
+                System.out.println("Produto nao encontrado!");
+                continue;
+            }
+
+            int quantidade = lerInteiro("Quantidade: ");
+
+            if (quantidade <= 0) {
+                System.out.println(
+                    "A quantidade deve ser maior que zero."
+                );
+                continue;
+            }
+
+            try {
+                pedidoService.adicionarProduto(
+                    pedido, codigo, quantidade
+                );
+
+                System.out.println(
+                    "\nProduto adicionado com sucesso!"
+                );
+            } catch (ArithmeticException e) {
+                System.out.println(
+                    "Quantidade excede o limite permitido."
+                );
+                continue;
+            }
+
+            String resposta;
+
+            do {
+                resposta = lerTexto(
+                    "Adicionar outro produto? (S/N): "
+                );
+
+                if (!resposta.equalsIgnoreCase("S")
+                        && !resposta.equalsIgnoreCase("N")) {
+                    System.out.println(
+                        "Resposta invalida. Digite S ou N."
+                    );
+                }
+
+            } while (!resposta.equalsIgnoreCase("S")
+                    && !resposta.equalsIgnoreCase("N"));
+
+            if (resposta.equalsIgnoreCase("N")) {
+                break;
+            }
         }
 
-        return scanner.nextInt();
+        if (pedido.estaVazio()) {
+            System.out.println("\nNenhum produto adicionado.");
+            return;
+        }
+
+        exibirResumoPedido(pedido);
+
+        System.out.println(
+            "\nPedido montado. Pagamento sera implementado na proxima etapa."
+        );
+    }
+
+    private void exibirResumoPedido(Pedido pedido) {
+
+        System.out.println("\n========== RESUMO DO PEDIDO ==========");
+
+        for (ItemPedido item : pedido.getItens()) {
+
+            System.out.printf(
+                "%dx %-22s R$ %6.2f%n",
+                item.getQuantidade(),
+                item.getProduto().getNome(),
+                item.calcularSubtotal()
+            );
+        }
+
+        System.out.println("--------------------------------------");
+
+        System.out.printf(
+            "SUBTOTAL: R$ %.2f%n",
+            pedido.calcularSubtotal()
+        );
+
+        System.out.println("======================================");
+    }
+
+    private int lerInteiro(String mensagem) {
+
+        while (true) {
+            System.out.print(mensagem);
+            String entrada = scanner.nextLine().trim();
+
+            try {
+                return Integer.parseInt(entrada);
+            } catch (NumberFormatException e) {
+                System.out.println(
+                    "Entrada invalida. Digite um numero inteiro."
+                );
+            }
+        }
+    }
+
+    private String lerTexto(String mensagem) {
+        System.out.print(mensagem);
+        return scanner.nextLine().trim();
     }
 }
