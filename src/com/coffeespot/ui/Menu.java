@@ -1,14 +1,19 @@
 
 package com.coffeespot.ui;
 
+import com.coffeespot.model.Produto;
+import com.coffeespot.service.CardapioService;
+
 import java.util.Scanner;
 
 public class Menu {
 
     private final Scanner scanner;
+    private final CardapioService cardapioService;
 
     public Menu() {
         scanner = new Scanner(System.in);
+        cardapioService = new CardapioService();
     }
 
     public void iniciar() {
@@ -26,9 +31,7 @@ public class Menu {
                     break;
 
                 case 2:
-                    System.out.println(
-                        "\nCardapio - Em desenvolvimento."
-                    );
+                    exibirCardapio();
                     break;
 
                 case 3:
@@ -72,7 +75,32 @@ public class Menu {
         System.out.print("Escolha uma opcao: ");
     }
 
+    private void exibirCardapio() {
+        System.out.println("\n========== CARDAPIO ==========");
+
+        String categoriaAtual = "";
+
+        for (Produto produto : cardapioService.listarProdutos()) {
+
+            if (!produto.getCategoria().equals(categoriaAtual)) {
+                categoriaAtual = produto.getCategoria();
+
+                System.out.println("\n--- " + categoriaAtual + " ---");
+            }
+
+            System.out.printf(
+                "%02d - %-22s R$ %6.2f%n",
+                produto.getCodigo(),
+                produto.getNome(),
+                produto.getPreco()
+            );
+        }
+
+        System.out.println("\n==============================");
+    }
+
     private int lerOpcao() {
+
         while (!scanner.hasNextInt()) {
             System.out.println("Entrada invalida!");
             System.out.print("Digite um numero: ");
