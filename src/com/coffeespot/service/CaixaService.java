@@ -3,6 +3,7 @@ package com.coffeespot.service;
 
 import com.coffeespot.model.FormaPagamento;
 import com.coffeespot.model.Pedido;
+import com.coffeespot.model.RelatorioCaixa;
 import com.coffeespot.model.Venda;
 import com.coffeespot.repository.VendaRepository;
 
@@ -14,10 +15,20 @@ public class CaixaService {
     private final VendaRepository vendaRepository;
 
     public CaixaService(VendaRepository vendaRepository) {
+        if (vendaRepository == null) {
+            throw new IllegalArgumentException(
+                "Repositorio obrigatorio."
+            );
+        }
+
         this.vendaRepository = vendaRepository;
     }
 
     public BigDecimal calcularDesconto(Pedido pedido) {
+
+        if (pedido == null) {
+            throw new IllegalArgumentException("Pedido invalido.");
+        }
 
         BigDecimal subtotal = pedido.calcularSubtotal();
         BigDecimal percentual;
@@ -61,6 +72,78 @@ public class CaixaService {
         );
 
         vendaRepository.salvar(venda);
+
         return venda;
+    }
+
+    public RelatorioCaixa gerarRelatorio() {
+
+        BigDecimal subtotalBruto = BigDecimal.ZERO;
+        BigDecimal totalDescontos = BigDecimal.ZERO;
+        BigDecimal faturamento = BigDecimal.ZERO;
+
+        BigDecimal totalDinheiro = BigDecimal.ZERO;
+        BigDecimal totalPix = BigDecimal.ZERO;
+        BigDecimal totalCartao = BigDecimal.ZERO;
+
+        int quantidadeVendas = 0;
+
+        for (Venda venda : vendaRepository.listarTodas()) {
+
+            quantidadeVendas++;
+
+            subtotalBruto = subtotalBruto.add(
+                venda.getSubtotal()
+            );
+
+            totalDescontos = totalDescontos.add(
+                venda.getDesconto()
+            );
+
+            faturamento = faturamento.add(
+                venda.getTotal()
+            );
+
+            switch (venda.getFormaPagamento()) {
+                case DINHEIRO:
+                    totalDinheiro = totalDinheiro.add(
+                        venda.getTotal()
+                    );
+                    break;
+
+                case PIX:
+                    totalPix = totalPix.add(
+                        venda.getTotal()
+                    );
+                    break;
+
+                case CARTAO:
+                    totalCartao = totalCartao.add(
+                        venda.getTotal()
+                    );
+                    break;
+            }
+        }
+
+        BigDecimal ticketMedio = BigDecimal.ZERO;
+
+        if (quantidadeVendas > 0) {
+            ticketMedio = faturamento.divide(
+                BigDecimal.valueOf(quantidadeVendas),
+                2,
+                RoundingMode.HALF_UP
+            );
+        }
+
+        return new RelatorioCaixa(
+            quantidadeVendas,
+            subtotalBruto,
+            totalDescontos,
+            faturamento,
+            totalDinheiro,
+            totalPix,
+            totalCartao,
+            ticketMedio
+        );
     }
 }

@@ -23,6 +23,16 @@ public class VendaRepository {
         return Collections.unmodifiableList(vendas);
     }
 
+    public Venda buscarPorNumero(int numero) {
+        for (Venda venda : vendas) {
+            if (venda.getNumero() == numero) {
+                return venda;
+            }
+        }
+
+        return null;
+    }
+
     public int proximoNumero() {
         return vendas.size() + 1;
     }

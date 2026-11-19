@@ -1,9 +1,16 @@
 
 package com.coffeespot.ui;
 
-import com.coffeespot.model.*;
+import com.coffeespot.model.FormaPagamento;
+import com.coffeespot.model.ItemPedido;
+import com.coffeespot.model.Pedido;
+import com.coffeespot.model.Produto;
+import com.coffeespot.model.RelatorioCaixa;
+import com.coffeespot.model.Venda;
 import com.coffeespot.repository.VendaRepository;
-import com.coffeespot.service.*;
+import com.coffeespot.service.CaixaService;
+import com.coffeespot.service.CardapioService;
+import com.coffeespot.service.PedidoService;
 
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
@@ -40,14 +47,10 @@ public class Menu {
                     exibirCardapio();
                     break;
                 case 3:
-                    System.out.println(
-                        "\nHistorico de vendas - Proxima etapa."
-                    );
+                    consultarVendas();
                     break;
                 case 4:
-                    System.out.println(
-                        "\nFechamento de caixa - Proxima etapa."
-                    );
+                    fecharCaixa();
                     break;
                 case 0:
                     System.out.println("\nEncerrando Coffee Spot...");
@@ -326,4 +329,71 @@ public class Menu {
             System.out.println("Digite S ou N.");
         }
     }
+
+    private void consultarVendas() {
+
+        System.out.println("\n========== HISTORICO DE VENDAS ==========");
+
+        if (vendaRepository.listarTodas().isEmpty()) {
+            System.out.println("Nenhuma venda registrada.");
+            return;
+        }
+
+        DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+        for (Venda venda : vendaRepository.listarTodas()) {
+
+            System.out.printf(
+                "#%03d | %s | %-8s | R$ %.2f%n",
+                venda.getNumero(),
+                venda.getDataHora().format(formato),
+                venda.getFormaPagamento(),
+                venda.getTotal()
+            );
+        }
+
+        System.out.println("=========================================");
+
+        int numero = lerInteiro(
+            "\nNumero da venda para ver comprovante (0 para voltar): "
+        );
+
+        if (numero == 0) {
+            return;
+        }
+
+        Venda venda = vendaRepository.buscarPorNumero(numero);
+
+        if (venda == null) {
+            System.out.println("Venda nao encontrada.");
+            return;
+        }
+
+        exibirComprovante(venda);
+    }
+
+    private void fecharCaixa() {
+        RelatorioCaixa relatorio = caixaService.gerarRelatorio();
+
+        System.out.println("\n========================================");
+        System.out.println("          COFFEE SPOT");
+        System.out.println("       FECHAMENTO DE CAIXA");
+        System.out.println("========================================");
+        System.out.printf("Vendas realizadas: %d%n", relatorio.getQuantidadeVendas());
+        System.out.println("----------------------------------------");
+        System.out.printf("Subtotal bruto:  R$ %.2f%n", relatorio.getSubtotalBruto());
+        System.out.printf("Descontos:       R$ %.2f%n", relatorio.getTotalDescontos());
+        System.out.printf("Faturamento:     R$ %.2f%n", relatorio.getFaturamento());
+        System.out.printf("Ticket medio:    R$ %.2f%n", relatorio.getTicketMedio());
+        System.out.println("----------------------------------------");
+        System.out.println("       FORMAS DE PAGAMENTO");
+        System.out.println("----------------------------------------");
+        System.out.printf("Dinheiro:        R$ %.2f%n", relatorio.getTotalDinheiro());
+        System.out.printf("Pix:             R$ %.2f%n", relatorio.getTotalPix());
+        System.out.printf("Cartao:          R$ %.2f%n", relatorio.getTotalCartao());
+        System.out.println("========================================");
+        System.out.println("Relatorio gerado com sucesso.");
+        System.out.println("As vendas permanecem registradas.");
+    }
+
 }
