@@ -1,0 +1,14 @@
+# Arquivos compilados
+*.class
+out/
+bin/
+build/
+target/
+
+# Arquivos temporarios
+*.log
+*.tmp
+
+# Configuracoes locais
+.vscode/
+.idea/
